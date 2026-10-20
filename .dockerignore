@@ -1,0 +1,17 @@
+artifacts/
+data/
+__pycache__/
+.venv/
+*.joblib
+.pytest_cache/
+.ruff_cache/
+tests/
+notebooks/
+.git/
+.github/
+.gitignore
+.dockerignore
+Dockerfile
+Makefile
+README.md
+LICENSE
