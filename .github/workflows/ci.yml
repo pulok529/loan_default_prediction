@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Lint with ruff
+        run: |
+          ruff check .
+
+      - name: Run test suite with pytest
+        run: |
+          pytest -q
+
+  docker:
+    name: Docker Build & Healthcheck
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t loan-default:ci .
+
+      - name: Run container
+        run: |
+          docker run -d --name loan-service -p 8000:8000 loan-default:ci
+
+      - name: Healthcheck with retries (30 x 2s)
+        run: |
+          for i in $(seq 1 30); do
+            echo "Attempt $i: verifying http://localhost:8000/health..."
+            if curl -s -f http://localhost:8000/health; then
+              echo ""
+              echo "Service is healthy and responding!"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health check failed after 30 attempts."
+          docker logs loan-service
+          exit 1
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          docker logs loan-service
